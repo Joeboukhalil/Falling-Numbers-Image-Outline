@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Outline with Falling Numbers</title>
+<style>
+body {
+  margin: 0;
+  background: black;
+  overflow: hidden;
+  font-family: monospace;
+}
+canvas {
+  display: block;
+}
+#controls {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+}
+input, button {
+  margin: 4px;
+  padding: 6px;
+  background: #222;
+  color: white;
+  border: 1px solid #555;
+}
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <input type="file" id="upload" accept="image/*">
+  <button onclick="download()">Download</button>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const numbers = "0123456789";
+const fontSize = 16;
+let columns = Math.floor(canvas.width / fontSize);
+let drops = Array(columns * 2).fill(0);
+
+let outlinePixels = [];
+
+document.getElementById("upload").addEventListener("change", e => {
+  const img = new Image();
+  img.onload = () => extractOutline(img);
+  img.src = URL.createObjectURL(e.target.files[0]);
+});
+
+function extractOutline(img) {
+  outlinePixels = [];
+
+  const temp = document.createElement("canvas");
+  const tctx = temp.getContext("2d");
+
+  const scale = Math.min(
+    canvas.width / img.width,
+    canvas.height / img.height
+  );
+
+  const w = img.width * scale;
+  const h = img.height * scale;
+  const ox = (canvas.width - w) / 2;
+  const oy = (canvas.height - h) / 2;
+
+  temp.width = w;
+  temp.height = h;
+  tctx.drawImage(img, 0, 0, w, h);
+
+  const imgData = tctx.getImageData(0, 0, w, h).data;
+
+  // TRUE EDGE DETECTION
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      const g = imgData[i] + imgData[i+1] + imgData[i+2];
+      const gx = imgData[i-4] - imgData[i+4];
+      const gy = imgData[i-w*4] - imgData[i+w*4];
+
+      if (Math.abs(gx) + Math.abs(gy) > 150) {
+        outlinePixels.push({ x: ox + x, y: oy + y });
+      }
+    }
+  }
+}
+
+function animate() {
+  // HARD CLEAR — prevents white screen
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw outline only
+  ctx.fillStyle = "white";
+  for (const p of outlinePixels) {
+    ctx.fillRect(p.x, p.y, 1, 1);
+  }
+
+  // Falling numbers
+  ctx.fillStyle = "#00ff66";
+  ctx.font = fontSize + "px monospace";
+
+  for (let i = 0; i < drops.length; i++) {
+    const x = (i % columns) * fontSize;
+    const y = drops[i] * fontSize;
+    ctx.fillText(numbers[Math.random() * numbers.length | 0], x, y);
+
+    if (y > canvas.height && Math.random() > 0.98) {
+      drops[i] = 0;
+    }
+    drops[i]++;
+  }
+
+  requestAnimationFrame(animate);
+}
+
+animate();
+
+function download() {
+  const a = document.createElement("a");
+  a.download = "outline_numbers.png";
+  a.href = canvas.toDataURL();
+  a.click();
+}
+</script>
+
+</body>
+</html>
